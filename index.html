@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>События Челябинска</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body, html { margin: 0; padding: 0; overflow: hidden; }
+    #map { width: 100%; height: 100vh; }
+  </style>
+  <!-- Замени ВАШ_API_КЛЮЧ на свой ключ от Яндекса -->
+  <script src="https://api-maps.yandex.ru/2.1/?apikey=b1f53a77-ae08-4c56-a87f-bc3740961488&lang=ru_RU" type="text/javascript"></script>
+</head>
+<body>
+  <div id="map"></div>
+
+  <script>
+    ymaps.ready(init);
+
+    function init() {
+      const map = new ymaps.Map("map", {
+        center: [55.1644, 61.4368],
+        zoom: 12
+      });
+
+      // Замени на ID твоей Google Таблицы
+      const sheetId = "1SLOAW8CF6RsCDCt4Oafb1pUYMRmoK6_WLMR5jgnZ8CY";
+      // Новая рабочая ссылка на CSV (автоматически даёт JSON)
+      const url = `https://docs.google.com/spreadsheets/d/1SLOAW8CF6RsCDCt4Oafb1pUYMRmoK6_WLMR5jgnZ8CY/gviz/tq?tqx=out:json`;
+
+      fetch(url)
+        .then(response => response.text())
+        .then(text => {
+          // Удаляем обёртку Google: "/*O_o*/\ngoogle.visualization.Query.setResponse(...);"
+          const jsonStr = text
+            .replace("/*O_o*/\ngoogle.visualization.Query.setResponse(", "")
+            .replace(");", "");
+          const data = JSON.parse(jsonStr);
+          
+          const table = data.table;
+          if (!table || !table.rows || table.rows.length === 0) {
+            console.warn('Таблица пуста');
+            return;
+          }
+
+          const cols = table.cols.map(col => col.label);
+          const rows = table.rows;
+
+          // Находим индексы нужных столбцов
+          const colIndex = {};
+          cols.forEach((label, i) => {
+            // Приводим к нижнему регистру и убираем пробелы для сопоставления
+            const key = label.toLowerCase().replace(/\s+/g, '');
+            colIndex[key] = i;
+          });
+
+          rows.forEach(row => {
+            try {
+              const cells = row.c;
+              if (!cells) return;
+
+              const getCell = (key) => {
+                const idx = colIndex[key];
+                return idx !== undefined && cells[idx] ? cells[idx].v : '';
+              };
+
+              const title = getCell('названиемероприятия') || 'Без названия';
+              const category = (getCell('категория') || 'другое').toLowerCase();
+              const datetime = getCell('датаивремя') || '';
+              const address = getCell('адресвчелябинске') || '';
+              const desc = getCell('описание') || '';
+              const photo = getCell('ссылканaфото') || '';
+
+              const lat = parseFloat(getCell('lat'));
+              const lon = parseFloat(getCell('lon'));
+
+              if (!lat || !lon || isNaN(lat) || isNaN(lon)) {
+                console.warn('Пропущено событие без корректных координат:', title);
+                return;
+              }
+
+              const colors = {
+                'бар': '#d32f2f',
+                'выставка': '#1976d2',
+                'концерт': '#7b1fa2',
+                'квартирник': '#388e3c',
+                'неформальное': '#f57c00'
+              };
+              const iconColor = colors[category] || '#666666';
+
+              let content = `
+                <div style="font-family: Arial, sans-serif; max-width: 280px; padding: 8px;">
+                  <div style="font-weight: bold; font-size: 16px; color: #333;">${title}</div>
+                  <div style="color: #666; margin: 4px 0; font-size: 13px;">${datetime}</div>
+                  <div style="background: ${iconColor}; color: white; display: inline-block; padding: 2 6px; border-radius: 4px; font-size: 11px; margin: 4px 0;">
+                    ${category}
+                  </div>
+                  <div style="margin: 6px 0; font-size: 13px; color: #444;">${desc}</div>
+                  ${photo ? `<img src="${photo}" style="width: 100%; border-radius: 4px; margin-top: 6px;">` : ''}
+                </div>
+              `;
+
+              const placemark = new ymaps.Placemark([lat, lon], {
+                balloonContent: content
+              }, {
+                preset: 'islands#circleIcon',
+                iconColor: iconColor
+              });
+
+              map.geoObjects.add(placemark);
+            } catch (e) {
+              console.error('Ошибка при обработке строки:', e);
+            }
+          });
+        })
+        .catch(err => {
+          console.error('Ошибка загрузки данных:', err);
+          alert('Не удалось загрузить мероприятия. Проверьте ID таблицы и её публикацию.');
+        });
+    }
+  </script>
+</body>
+</html>
