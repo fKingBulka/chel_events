@@ -25,13 +25,11 @@
 
       // Замени на ID твоей Google Таблицы
       const sheetId = "1SLOAW8CF6RsCDCt4Oafb1pUYMRmoK6_WLMR5jgnZ8CY";
-      // Новая рабочая ссылка на CSV (автоматически даёт JSON)
-      const url = `https://docs.google.com/spreadsheets/d/1SLOAW8CF6RsCDCt4Oafb1pUYMRmoK6_WLMR5jgnZ8CY/gviz/tq?tqx=out:json`;
+      const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json`;
 
       fetch(url)
         .then(response => response.text())
         .then(text => {
-          // Удаляем обёртку Google: "/*O_o*/\ngoogle.visualization.Query.setResponse(...);"
           const jsonStr = text
             .replace("/*O_o*/\ngoogle.visualization.Query.setResponse(", "")
             .replace(");", "");
@@ -46,10 +44,8 @@
           const cols = table.cols.map(col => col.label);
           const rows = table.rows;
 
-          // Находим индексы нужных столбцов
           const colIndex = {};
           cols.forEach((label, i) => {
-            // Приводим к нижнему регистру и убираем пробелы для сопоставления
             const key = label.toLowerCase().replace(/\s+/g, '');
             colIndex[key] = i;
           });
@@ -66,10 +62,33 @@
 
               const title = getCell('названиемероприятия') || 'Без названия';
               const category = (getCell('категория') || 'другое').toLowerCase();
-              const datetime = getCell('датаивремя') || '';
               const address = getCell('адресвчелябинске') || '';
               const desc = getCell('описание') || '';
               const photo = getCell('ссылканaфото') || '';
+
+              // === Обработка даты и времени ===
+              let datetimeDisplay = '';
+              const dateStr = getCell('датамероприятия') || '';
+              const timeStartStr = getCell('времяначала') || '';
+              const timeEndStr = getCell('времяокончания') || '';
+
+              if (dateStr) {
+                const [year, month, day] = dateStr.split('-').map(Number);
+                const months = [
+                  'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+                  'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
+                ];
+                if (year && month && day && months[month - 1]) {
+                  const dateFormatted = `${day} ${months[month - 1]} ${year} г.`;
+                  if (timeStartStr && timeEndStr) {
+                    datetimeDisplay = `${dateFormatted}<br>с ${timeStartStr} до ${timeEndStr}`;
+                  } else if (timeStartStr) {
+                    datetimeDisplay = `${dateFormatted}<br>в ${timeStartStr}`;
+                  } else {
+                    datetimeDisplay = dateFormatted;
+                  }
+                }
+              }
 
               const lat = parseFloat(getCell('lat'));
               const lon = parseFloat(getCell('lon'));
@@ -91,8 +110,8 @@
               let content = `
                 <div style="font-family: Arial, sans-serif; max-width: 280px; padding: 8px;">
                   <div style="font-weight: bold; font-size: 16px; color: #333;">${title}</div>
-                  <div style="color: #666; margin: 4px 0; font-size: 13px;">${datetime}</div>
-                  <div style="background: ${iconColor}; color: white; display: inline-block; padding: 2 6px; border-radius: 4px; font-size: 11px; margin: 4px 0;">
+                  ${datetimeDisplay ? `<div style="color: #666; margin: 4px 0; font-size: 13px;">${datetimeDisplay}</div>` : ''}
+                  <div style="background: ${iconColor}; color: white; display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin: 4px 0;">
                     ${category}
                   </div>
                   <div style="margin: 6px 0; font-size: 13px; color: #444;">${desc}</div>
@@ -115,7 +134,7 @@
         })
         .catch(err => {
           console.error('Ошибка загрузки данных:', err);
-          alert('Не удалось загрузить мероприятия. Проверьте ID таблицы и её публикацию.');
+          alert('Не удалось загрузить мероприятия.');
         });
     }
   </script>
