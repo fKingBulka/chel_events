@@ -15,139 +15,145 @@
   <div id="map"></div>
 
   <script>
-    ymaps.ready(init);
+<script>
+  ymaps.ready(init);
 
-    function init() {
-      const map = new ymaps.Map("map", {
-        center: [55.1644, 61.4368],
-        zoom: 12
-      });
+  function init() {
+    const map = new ymaps.Map("map", {
+      center: [55.1644, 61.4368],
+      zoom: 12
+    });
 
-      // Замени на ID твоей Google Таблицы
-      const sheetId = "1SLOAW8CF6RsCDCt4Oafb1pUYMRmoK6_WLMR5jgnZ8CY";
-      const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json`;
+    const sheetId = "1SLOAW8CF6RsCDCt4Oafb1pUYMRmoK6_WLMR5jgnZ8CY";
+    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json`;
 
-      fetch(url)
-        .then(response => response.text())
-        .then(text => {
-          const jsonStr = text
-            .replace("/*O_o*/\ngoogle.visualization.Query.setResponse(", "")
-            .replace(");", "");
-          const data = JSON.parse(jsonStr);
-          
-          const table = data.table;
-          if (!table || !table.rows || table.rows.length === 0) {
-            console.warn('Таблица пуста');
-            return;
-          }
+    fetch(url)
+      .then(response => response.text())
+      .then(text => {
+        const jsonStr = text
+          .replace("/*O_o*/\ngoogle.visualization.Query.setResponse(", "")
+          .replace(");", "");
+        const data = JSON.parse(jsonStr);
+        
+        const table = data.table;
+        if (!table || !table.rows || table.rows.length === 0) {
+          console.warn('Таблица пуста');
+          return;
+        }
 
-          const cols = table.cols.map(col => col.label);
-          const rows = table.rows;
+        const cols = table.cols.map(col => col.label);
+        const rows = table.rows;
 
-          // Функция поиска по точному названию столбца
-          function getRawCell(cells, label) {
-            const idx = cols.findIndex(col => col === label);
-            if (idx === -1) return '';
-            return cells[idx] ? cells[idx].v : '';
-          }
+        // Найдём индексы нужных столбцов ОДИН РАЗ
+        const nameIdx = cols.indexOf('Название мероприятия');
+        const categoryIdx = cols.indexOf('Категория');
+        const dateIdx = cols.indexOf('Дата мероприятия');
+        const timeStartIdx = cols.indexOf('Время начала');
+        const timeEndIdx = cols.indexOf('Время окончания');
+        const addressIdx = cols.indexOf('Адрес в Челябинске');
+        const descIdx = cols.indexOf('Описание');
+        const photoIdx = cols.indexOf('Ссылка на фото');
+        const latIdx = cols.indexOf('lat');
+        const lonIdx = cols.indexOf('lon');
 
-          rows.forEach(row => {
-            try {
-              const cells = row.c;
-              if (!cells) return;
+        rows.forEach(row => {
+          try {
+            const cells = row.c;
+            if (!cells) return;
 
-              // Явное сопоставление с твоими заголовками
-              const title = getRawCell(cells, 'Название мероприятия') || 'Без названия';
-              const category = (getRawCell(cells, 'Категория') || 'другое').toLowerCase();
-              const dateStr = getRawCell(cells, 'Дата мероприятия') || '';
-              const timeStartStr = getRawCell(cells, 'Время начала') || '';
-              const timeEndStr = getRawCell(cells, 'Время окончания') || '';
-              const address = getRawCell(cells, 'Адрес в Челябинске') || '';
-              const desc = getRawCell(cells, 'Описание') || '';
-              const photo = getRawCell(cells, 'Ссылка на фото') || '';
+            // Получаем значения по индексам
+            const title = (cells[nameIdx] && cells[nameIdx].v) || 'Без названия';
+            const category = ((cells[categoryIdx] && cells[categoryIdx].v) || 'другое').toLowerCase();
+            const dateStr = (cells[dateIdx] && cells[dateIdx].v) || '';
+            const timeStartStr = (cells[timeStartIdx] && cells[timeStartIdx].v) || '';
+            const timeEndStr = (cells[timeEndIdx] && cells[timeEndIdx].v) || '';
+            const desc = (cells[descIdx] && cells[descIdx].v) || '';
+            const photo = (cells[photoIdx] && cells[photoIdx].v) || '';
 
-              // === Обработка даты и времени ===
-              let datetimeDisplay = '';
-              if (dateStr) {
-                let day, month, year;
-                const dateClean = dateStr.toString().trim();
-                if (dateClean.includes('.')) {
-                  const parts = dateClean.split('.');
-                  day = parseInt(parts[0], 10);
-                  month = parseInt(parts[1], 10);
-                  year = parseInt(parts[2], 10);
-                } else if (dateClean.includes('-')) {
-                  const parts = dateClean.split('-');
-                  year = parseInt(parts[0], 10);
-                  month = parseInt(parts[1], 10);
-                  day = parseInt(parts[2], 10);
-                }
+            const lat = parseFloat(cells[latIdx] && cells[latIdx].v);
+            const lon = parseFloat(cells[lonIdx] && cells[lonIdx].v);
 
-                const months = [
-                  'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-                  'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
-                ];
-
-                if (day > 0 && month > 0 && year > 1900 && months[month - 1]) {
-                  const dateFormatted = `${day} ${months[month - 1]} ${year} г.`;
-
-                  if (timeStartStr && timeEndStr) {
-                    datetimeDisplay = `${dateFormatted}<br>с ${timeStartStr} до ${timeEndStr}`;
-                  } else if (timeStartStr) {
-                    datetimeDisplay = `${dateFormatted}<br>в ${timeStartStr}`;
-                  } else {
-                    datetimeDisplay = dateFormatted;
-                  }
-                }
-              }
-
-              const lat = parseFloat(getRawCell(cells, 'lat'));
-              const lon = parseFloat(getRawCell(cells, 'lon'));
-
-              if (!lat || !lon || isNaN(lat) || isNaN(lon)) {
-                console.warn('Пропущено событие без корректных координат:', title);
-                return;
-              }
-
-              const colors = {
-                'бар': '#d32f2f',
-                'выставка': '#1976d2',
-                'концерт': '#7b1fa2',
-                'квартирник': '#388e3c',
-                'неформальное': '#f57c00'
-              };
-              const iconColor = colors[category] || '#666666';
-
-              let content = `
-                <div style="font-family: Arial, sans-serif; max-width: 280px; padding: 8px;">
-                  <div style="font-weight: bold; font-size: 16px; color: #333;">${title}</div>
-                  ${datetimeDisplay ? `<div style="color: #666; margin: 4px 0; font-size: 13px;">${datetimeDisplay}</div>` : ''}
-                  <div style="background: ${iconColor}; color: white; display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin: 4px 0;">
-                    ${category}
-                  </div>
-                  <div style="margin: 6px 0; font-size: 13px; color: #444;">${desc}</div>
-                  ${photo ? `<img src="${photo}" style="width: 100%; border-radius: 4px; margin-top: 6px;">` : ''}
-                </div>
-              `;
-
-              const placemark = new ymaps.Placemark([lat, lon], {
-                balloonContent: content
-              }, {
-                preset: 'islands#circleIcon',
-                iconColor: iconColor
-              });
-
-              map.geoObjects.add(placemark);
-            } catch (e) {
-              console.error('Ошибка при обработке строки:', e);
+            if (!lat || !lon || isNaN(lat) || isNaN(lon)) {
+              console.warn('Пропущено событие без корректных координат:', title);
+              return;
             }
-          });
-        })
-        .catch(err => {
-          console.error('Ошибка загрузки данных:', err);
-          alert('Не удалось загрузить мероприятия.');
+
+            // === Обработка даты и времени ===
+            let datetimeDisplay = '';
+            if (dateStr) {
+              let day, month, year;
+              const dateClean = dateStr.toString().trim();
+              if (dateClean.includes('.')) {
+                const parts = dateClean.split('.');
+                day = parseInt(parts[0], 10);
+                month = parseInt(parts[1], 10);
+                year = parseInt(parts[2], 10);
+              } else if (dateClean.includes('-')) {
+                const parts = dateClean.split('-');
+                year = parseInt(parts[0], 10);
+                month = parseInt(parts[1], 10);
+                day = parseInt(parts[2], 10);
+              }
+
+              const months = [
+                'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+                'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
+              ];
+
+              if (day > 0 && month > 0 && year > 1900 && months[month - 1]) {
+                const dateFormatted = `${day} ${months[month - 1]} ${year} г.`;
+
+                if (timeStartStr && timeEndStr) {
+                  datetimeDisplay = `${dateFormatted}<br>с ${timeStartStr} до ${timeEndStr}`;
+                } else if (timeStartStr) {
+                  datetimeDisplay = `${dateFormatted}<br>в ${timeStartStr}`;
+                } else {
+                  datetimeDisplay = dateFormatted;
+                }
+              }
+            }
+
+            const colors = {
+              'бар': '#d32f2f',
+              'выставка': '#1976d2',
+              'концерт': '#7b1fa2',
+              'квартирник': '#388e3c',
+              'неформальное': '#f57c00'
+            };
+            const iconColor = colors[category] || '#666666';
+
+            let content = `
+              <div style="font-family: Arial, sans-serif; max-width: 280px; padding: 8px;">
+                <div style="font-weight: bold; font-size: 16px; color: #333;">${title}</div>
+                ${datetimeDisplay ? `<div style="color: #666; margin: 4px 0; font-size: 13px;">${datetimeDisplay}</div>` : ''}
+                <div style="background: ${iconColor}; color: white; display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin: 4px 0;">
+                  ${category}
+                </div>
+                <div style="margin: 6px 0; font-size: 13px; color: #444;">${desc}</div>
+                ${photo ? `<img src="${photo}" style="width: 100%; border-radius: 4px; margin-top: 6px;">` : ''}
+              </div>
+            `;
+
+            const placemark = new ymaps.Placemark([lat, lon], {
+              balloonContent: content
+            }, {
+              preset: 'islands#circleIcon',
+              iconColor: iconColor
+            });
+
+            map.geoObjects.add(placemark);
+          } catch (e) {
+            console.error('Ошибка при обработке строки:', e);
+          }
         });
-    }
+      })
+      .catch(err => {
+        console.error('Ошибка загрузки данных:', err);
+        alert('Не удалось загрузить мероприятия.');
+      });
+  }
+</script>
   </script>
 </body>
 </html>
+
