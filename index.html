@@ -73,13 +73,28 @@
               const timeEndStr = getCell('времяокончания') || '';
 
               if (dateStr) {
-                const [year, month, day] = dateStr.split('-').map(Number);
+                let day, month, year;
+                const dateClean = dateStr.toString().trim();
+                if (dateClean.includes('.')) {
+                  const parts = dateClean.split('.');
+                  day = parseInt(parts[0], 10);
+                  month = parseInt(parts[1], 10);
+                  year = parseInt(parts[2], 10);
+                } else if (dateClean.includes('-')) {
+                  const parts = dateClean.split('-');
+                  year = parseInt(parts[0], 10);
+                  month = parseInt(parts[1], 10);
+                  day = parseInt(parts[2], 10);
+                }
+
                 const months = [
                   'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
                   'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
                 ];
-                if (year && month && day && months[month - 1]) {
+
+                if (day > 0 && month > 0 && year > 1900 && months[month - 1]) {
                   const dateFormatted = `${day} ${months[month - 1]} ${year} г.`;
+
                   if (timeStartStr && timeEndStr) {
                     datetimeDisplay = `${dateFormatted}<br>с ${timeStartStr} до ${timeEndStr}`;
                   } else if (timeStartStr) {
