@@ -95,8 +95,26 @@ const idx = {
               const title = getVal(idx.name) || 'Без названия';
               const category = getVal(idx.category).toLowerCase() || 'другое';
               const dateStr = getVal(idx.date);
-              const timeStartStr = getVal(idx.timeStart);
-              const timeEndStr = getVal(idx.timeEnd);
+             // Форматирование времени: убираем секунды
+              const timeStartRaw = getVal(idx.timeStart);
+              const timeEndRaw = getVal(idx.timeEnd);
+
+              let timeStartStr = '';
+              let timeEndStr = '';
+
+              if (timeStartRaw) {
+              const parts = timeStartRaw.split(':');
+              if (parts.length >= 2) {
+              timeStartStr = `${parts[0]}:${parts[1]}`;
+  }
+}
+
+if (timeEndRaw) {
+  const parts = timeEndRaw.split(':');
+  if (parts.length >= 2) {
+    timeEndStr = `${parts[0]}:${parts[1]}`;
+  }
+}
               const desc = getVal(idx.desc);
               const photo = getVal(idx.photo);
 
@@ -179,4 +197,5 @@ const idx = {
   </script>
 </body>
 </html>
+
 
