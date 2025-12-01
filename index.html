@@ -44,34 +44,30 @@
           const cols = table.cols.map(col => col.label);
           const rows = table.rows;
 
-          const colIndex = {};
-          cols.forEach((label, i) => {
-            const key = label.toLowerCase().replace(/\s+/g, '');
-            colIndex[key] = i;
-          });
+          // Функция поиска по точному названию столбца
+          function getRawCell(cells, label) {
+            const idx = cols.findIndex(col => col === label);
+            if (idx === -1) return '';
+            return cells[idx] ? cells[idx].v : '';
+          }
 
           rows.forEach(row => {
             try {
               const cells = row.c;
               if (!cells) return;
 
-              const getCell = (key) => {
-                const idx = colIndex[key];
-                return idx !== undefined && cells[idx] ? cells[idx].v : '';
-              };
-
-              const title = getCell('названиемероприятия') || 'Без названия';
-              const category = (getCell('категория') || 'другое').toLowerCase();
-              const address = getCell('адресвчелябинске') || '';
-              const desc = getCell('описание') || '';
-              const photo = getCell('ссылканaфото') || '';
+              // Явное сопоставление с твоими заголовками
+              const title = getRawCell(cells, 'Название мероприятия') || 'Без названия';
+              const category = (getRawCell(cells, 'Категория') || 'другое').toLowerCase();
+              const dateStr = getRawCell(cells, 'Дата мероприятия') || '';
+              const timeStartStr = getRawCell(cells, 'Время начала') || '';
+              const timeEndStr = getRawCell(cells, 'Время окончания') || '';
+              const address = getRawCell(cells, 'Адрес в Челябинске') || '';
+              const desc = getRawCell(cells, 'Описание') || '';
+              const photo = getRawCell(cells, 'Ссылка на фото') || '';
 
               // === Обработка даты и времени ===
               let datetimeDisplay = '';
-              const dateStr = getCell('датамероприятия') || '';
-              const timeStartStr = getCell('времяначала') || '';
-              const timeEndStr = getCell('времяокончания') || '';
-
               if (dateStr) {
                 let day, month, year;
                 const dateClean = dateStr.toString().trim();
@@ -105,8 +101,8 @@
                 }
               }
 
-              const lat = parseFloat(getCell('lat'));
-              const lon = parseFloat(getCell('lon'));
+              const lat = parseFloat(getRawCell(cells, 'lat'));
+              const lon = parseFloat(getRawCell(cells, 'lon'));
 
               if (!lat || !lon || isNaN(lat) || isNaN(lon)) {
                 console.warn('Пропущено событие без корректных координат:', title);
