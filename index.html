@@ -54,18 +54,28 @@
           const rows = table.rows;
 
           // === Определяем индексы столбцов ПО ТОЧНЫМ НАЗВАНИЯМ ===
-          const idx = {
-            name: cols.indexOf('Название мероприятия'),
-            category: cols.indexOf('Категория'),
-            date: cols.indexOf('Дата мероприятия'),
-            timeStart: cols.indexOf('Время начала'),
-            timeEnd: cols.indexOf('Время окончания'),
-            address: cols.indexOf('Адрес в Челябинске'),
-            desc: cols.indexOf('Описание'),
-            photo: cols.indexOf('Ссылка на фото'),
-            lat: cols.indexOf('lat'),
-            lon: cols.indexOf('lon')
-          };
+        function findColIndex(label) {
+  const normalizedLabel = label.toLowerCase().trim();
+  for (let i = 0; i < cols.length; i++) {
+    if (cols[i] && cols[i].toLowerCase().trim() === normalizedLabel) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+const idx = {
+  name: findColIndex('название мероприятия'),
+  category: findColIndex('категория'),
+  date: findColIndex('дата мероприятия'),
+  timeStart: findColIndex('время начала'),
+  timeEnd: findColIndex('время окончания'),
+  address: findColIndex('адрес в челябинске'),
+  desc: findColIndex('описание'),
+  photo: findColIndex('ссылка на фото'),
+  lat: findColIndex('lat'),
+  lon: findColIndex('lon')
+};
 
           // Проверка: все ли столбцы найдены?
           if (idx.name === -1 || idx.lat === -1 || idx.lon === -1) {
@@ -169,3 +179,4 @@
   </script>
 </body>
 </html>
+
