@@ -8,152 +8,164 @@
     body, html { margin: 0; padding: 0; overflow: hidden; }
     #map { width: 100%; height: 100vh; }
   </style>
-  <!-- Замени ВАШ_API_КЛЮЧ на свой ключ от Яндекса -->
+  <!-- ЗАМЕНИ ЭТУ СТРОКУ: вставь свой API-ключ от Яндекса -->
   <script src="https://api-maps.yandex.ru/2.1/?apikey=b1f53a77-ae08-4c56-a87f-bc3740961488&lang=ru_RU" type="text/javascript"></script>
 </head>
 <body>
   <div id="map"></div>
 
   <script>
-<script>
-  ymaps.ready(init);
+    ymaps.ready(init);
 
-  function init() {
-    const map = new ymaps.Map("map", {
-      center: [55.1644, 61.4368],
-      zoom: 12
-    });
+    function init() {
+      const map = new ymaps.Map("map", {
+        center: [55.1644, 61.4368],
+        zoom: 12
+      });
 
-    const sheetId = "1SLOAW8CF6RsCDCt4Oafb1pUYMRmoK6_WLMR5jgnZ8CY";
-    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json`;
+      // ЗАМЕНИ ЭТУ СТРОКУ: вставь ID своей Google Таблицы
+      const sheetId = "1SLOAW8CF6RsCDCt4Oafb1pUYMRmoK6_WLMR5jgnZ8CY";
+      const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json`;
 
-    fetch(url)
-      .then(response => response.text())
-      .then(text => {
-        const jsonStr = text
-          .replace("/*O_o*/\ngoogle.visualization.Query.setResponse(", "")
-          .replace(");", "");
-        const data = JSON.parse(jsonStr);
-        
-        const table = data.table;
-        if (!table || !table.rows || table.rows.length === 0) {
-          console.warn('Таблица пуста');
-          return;
-        }
-
-        const cols = table.cols.map(col => col.label);
-        const rows = table.rows;
-
-        // Найдём индексы нужных столбцов ОДИН РАЗ
-        const nameIdx = cols.indexOf('Название мероприятия');
-        const categoryIdx = cols.indexOf('Категория');
-        const dateIdx = cols.indexOf('Дата мероприятия');
-        const timeStartIdx = cols.indexOf('Время начала');
-        const timeEndIdx = cols.indexOf('Время окончания');
-        const addressIdx = cols.indexOf('Адрес в Челябинске');
-        const descIdx = cols.indexOf('Описание');
-        const photoIdx = cols.indexOf('Ссылка на фото');
-        const latIdx = cols.indexOf('lat');
-        const lonIdx = cols.indexOf('lon');
-
-        rows.forEach(row => {
+      fetch(url)
+        .then(response => response.text())
+        .then(text => {
+          // Очистка обёртки Google
+          const cleanText = text
+            .replace("/*O_o*/\ngoogle.visualization.Query.setResponse(", "")
+            .replace(");", "");
+          
+          let data;
           try {
-            const cells = row.c;
-            if (!cells) return;
+            data = JSON.parse(cleanText);
+          } catch (e) {
+            console.error('Ошибка парсинга JSON:', e);
+            alert('Ошибка данных. Проверьте публикацию таблицы.');
+            return;
+          }
 
-            // Получаем значения по индексам
-            const title = (cells[nameIdx] && cells[nameIdx].v) || 'Без названия';
-            const category = ((cells[categoryIdx] && cells[categoryIdx].v) || 'другое').toLowerCase();
-            const dateStr = (cells[dateIdx] && cells[dateIdx].v) || '';
-            const timeStartStr = (cells[timeStartIdx] && cells[timeStartIdx].v) || '';
-            const timeEndStr = (cells[timeEndIdx] && cells[timeEndIdx].v) || '';
-            const desc = (cells[descIdx] && cells[descIdx].v) || '';
-            const photo = (cells[photoIdx] && cells[photoIdx].v) || '';
+          const table = data.table;
+          if (!table || !table.cols || !table.rows || table.rows.length === 0) {
+            console.warn('Таблица пуста или повреждена');
+            return;
+          }
 
-            const lat = parseFloat(cells[latIdx] && cells[latIdx].v);
-            const lon = parseFloat(cells[lonIdx] && cells[lonIdx].v);
+          const cols = table.cols.map(col => col.label);
+          const rows = table.rows;
 
-            if (!lat || !lon || isNaN(lat) || isNaN(lon)) {
-              console.warn('Пропущено событие без корректных координат:', title);
-              return;
-            }
+          // === Определяем индексы столбцов ПО ТОЧНЫМ НАЗВАНИЯМ ===
+          const idx = {
+            name: cols.indexOf('Название мероприятия'),
+            category: cols.indexOf('Категория'),
+            date: cols.indexOf('Дата мероприятия'),
+            timeStart: cols.indexOf('Время начала'),
+            timeEnd: cols.indexOf('Время окончания'),
+            address: cols.indexOf('Адрес в Челябинске'),
+            desc: cols.indexOf('Описание'),
+            photo: cols.indexOf('Ссылка на фото'),
+            lat: cols.indexOf('lat'),
+            lon: cols.indexOf('lon')
+          };
 
-            // === Обработка даты и времени ===
-            let datetimeDisplay = '';
-            if (dateStr) {
-              let day, month, year;
-              const dateClean = dateStr.toString().trim();
-              if (dateClean.includes('.')) {
-                const parts = dateClean.split('.');
-                day = parseInt(parts[0], 10);
-                month = parseInt(parts[1], 10);
-                year = parseInt(parts[2], 10);
-              } else if (dateClean.includes('-')) {
-                const parts = dateClean.split('-');
-                year = parseInt(parts[0], 10);
-                month = parseInt(parts[1], 10);
-                day = parseInt(parts[2], 10);
+          // Проверка: все ли столбцы найдены?
+          if (idx.name === -1 || idx.lat === -1 || idx.lon === -1) {
+            console.error('Не найдены обязательные столбцы в таблице', idx);
+            return;
+          }
+
+          // === Обработка каждой строки ===
+          rows.forEach(row => {
+            try {
+              const cells = row.c;
+              if (!cells) return;
+
+              // Вспомогательная функция для безопасного извлечения
+              const getVal = (i) => (i !== -1 && cells[i] && cells[i].v) ? cells[i].v.toString().trim() : '';
+
+              const title = getVal(idx.name) || 'Без названия';
+              const category = getVal(idx.category).toLowerCase() || 'другое';
+              const dateStr = getVal(idx.date);
+              const timeStartStr = getVal(idx.timeStart);
+              const timeEndStr = getVal(idx.timeEnd);
+              const desc = getVal(idx.desc);
+              const photo = getVal(idx.photo);
+
+              const lat = parseFloat(getVal(idx.lat));
+              const lon = parseFloat(getVal(idx.lon));
+
+              if (isNaN(lat) || isNaN(lon)) {
+                console.warn('Пропущено событие: нет координат', title);
+                return;
               }
 
-              const months = [
-                'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-                'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
-              ];
+              // === Форматирование даты и времени ===
+              let datetimeDisplay = '';
+              if (dateStr) {
+                let day, month, year;
+                if (dateStr.includes('.')) {
+                  [day, month, year] = dateStr.split('.').map(Number);
+                } else if (dateStr.includes('-')) {
+                  [year, month, day] = dateStr.split('-').map(Number);
+                }
 
-              if (day > 0 && month > 0 && year > 1900 && months[month - 1]) {
-                const dateFormatted = `${day} ${months[month - 1]} ${year} г.`;
+                if (day > 0 && day <= 31 && month > 0 && month <= 12 && year > 1900) {
+                  const months = [
+                    'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+                    'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
+                  ];
+                  const dateFormatted = `${day} ${months[month - 1]} ${year} г.`;
 
-                if (timeStartStr && timeEndStr) {
-                  datetimeDisplay = `${dateFormatted}<br>с ${timeStartStr} до ${timeEndStr}`;
-                } else if (timeStartStr) {
-                  datetimeDisplay = `${dateFormatted}<br>в ${timeStartStr}`;
-                } else {
-                  datetimeDisplay = dateFormatted;
+                  if (timeStartStr && timeEndStr) {
+                    datetimeDisplay = `${dateFormatted}<br>с ${timeStartStr} до ${timeEndStr}`;
+                  } else if (timeStartStr) {
+                    datetimeDisplay = `${dateFormatted}<br>в ${timeStartStr}`;
+                  } else {
+                    datetimeDisplay = dateFormatted;
+                  }
                 }
               }
-            }
 
-            const colors = {
-              'бар': '#d32f2f',
-              'выставка': '#1976d2',
-              'концерт': '#7b1fa2',
-              'квартирник': '#388e3c',
-              'неформальное': '#f57c00'
-            };
-            const iconColor = colors[category] || '#666666';
+              // === Цвет маркера ===
+              const colors = {
+                'бар': '#d32f2f',
+                'выставка': '#1976d2',
+                'концерт': '#7b1fa2',
+                'квартирник': '#388e3c',
+                'неформальное': '#f57c00'
+              };
+              const iconColor = colors[category] || '#666666';
 
-            let content = `
-              <div style="font-family: Arial, sans-serif; max-width: 280px; padding: 8px;">
-                <div style="font-weight: bold; font-size: 16px; color: #333;">${title}</div>
-                ${datetimeDisplay ? `<div style="color: #666; margin: 4px 0; font-size: 13px;">${datetimeDisplay}</div>` : ''}
-                <div style="background: ${iconColor}; color: white; display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin: 4px 0;">
-                  ${category}
+              // === Содержимое карточки ===
+              let content = `
+                <div style="font-family: Arial, sans-serif; max-width: 280px; padding: 8px;">
+                  <div style="font-weight: bold; font-size: 16px; color: #333;">${title}</div>
+                  ${datetimeDisplay ? `<div style="color: #666; margin: 4px 0; font-size: 13px;">${datetimeDisplay}</div>` : ''}
+                  <div style="background: ${iconColor}; color: white; display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin: 4px 0;">
+                    ${category}
+                  </div>
+                  ${desc ? `<div style="margin: 6px 0; font-size: 13px; color: #444;">${desc}</div>` : ''}
+                  ${photo ? `<img src="${photo}" style="width: 100%; border-radius: 4px; margin-top: 6px;">` : ''}
                 </div>
-                <div style="margin: 6px 0; font-size: 13px; color: #444;">${desc}</div>
-                ${photo ? `<img src="${photo}" style="width: 100%; border-radius: 4px; margin-top: 6px;">` : ''}
-              </div>
-            `;
+              `;
 
-            const placemark = new ymaps.Placemark([lat, lon], {
-              balloonContent: content
-            }, {
-              preset: 'islands#circleIcon',
-              iconColor: iconColor
-            });
+              const placemark = new ymaps.Placemark([lat, lon], {
+                balloonContent: content
+              }, {
+                preset: 'islands#circleIcon',
+                iconColor: iconColor
+              });
 
-            map.geoObjects.add(placemark);
-          } catch (e) {
-            console.error('Ошибка при обработке строки:', e);
-          }
+              map.geoObjects.add(placemark);
+            } catch (e) {
+              console.error('Ошибка обработки строки:', e);
+            }
+          });
+        })
+        .catch(err => {
+          console.error('Ошибка загрузки данных:', err);
+          alert('Не удалось загрузить мероприятия. Проверьте настройки таблицы.');
         });
-      })
-      .catch(err => {
-        console.error('Ошибка загрузки данных:', err);
-        alert('Не удалось загрузить мероприятия.');
-      });
-  }
-</script>
+    }
   </script>
 </body>
 </html>
-
